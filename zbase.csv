@@ -1,0 +1,8 @@
+code, name, description
+'b', base2,     binary (01010101),
+'o', base8,     octal,
+'d', base10,    decimal,
+'x', base16,    hexadecimal,
+'v', base32z,   z-base-32,
+'_', base58btc, base58 bitcoin,
+'~', base64url, rfc4648 no padding,

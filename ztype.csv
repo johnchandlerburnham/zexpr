@@ -1,0 +1,9 @@
+code, name, category, description
+0x00, bytes, valus, raw bytes,
+0x01, symbol, valus, a symbol
+0x02, nat, valus, natural number, or unsigned integer
+0x03, int, valus, signed integer
+0x04, float, valus, floating point number
+0x05, text, valus, utf8 encoded text
+0x06, char, valuse, a unicode code point
+0x07, hash, valus, a blake3 hash digest

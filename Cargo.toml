@@ -1,0 +1,18 @@
+[package]
+name = "zexpr"
+version = "0.1.0"
+authors = ["John C. Burnham <jcb@johnchandlerburnham.com>"]
+edition = "2018"
+license = "AGPL3"
+
+[dependencies]
+serde = "1.0.118"
+nom = "6.0.1"
+base-x = "0.2.8"
+
+[dev-dependencies]
+serde_derive = "1.0"
+quickcheck = "^0.9.2"
+rand = "0.7.3"
+quickcheck_macros = "^0.9.1"
+
