@@ -49,7 +49,7 @@ impl fmt::Display for ZType {
 }
 
 impl ZType {
-  pub fn code(&self) -> &[u8] {
+  pub fn serialize(&self) -> &[u8] {
     match self {
       Self::Bytes(_) => &[0x00],
       Self::Symbol(_) => &[0x01],
@@ -59,6 +59,32 @@ impl ZType {
       Self::Text(_) => &[0x05],
       Self::Char(_) => &[0x06],
       Self::Hash(_) => &[0x07],
+    }
+  }
+  pub fn deserialize(i: &[u8], len: Option<u64>) -> Option<Self> {
+    match i {
+      &[0x00] => Some(Self::Bytes(len)),
+      &[0x01] => Some(Self::Symbol(len)),
+      &[0x02] => Some(Self::Nat(len)),
+      &[0x03] => Some(Self::Int(len)),
+      &[0x04] => Some(Self::Float(len)),
+      &[0x05] => Some(Self::Text(len)),
+      &[0x06] => Some(Self::Char(len)),
+      &[0x07] => Some(Self::Hash(len)),
+      _ => None,
+    }
+  }
+  pub fn is_some_len(&self) -> bool {
+    match self {
+      Self::Bytes(Some(_)) => true,
+      Self::Symbol(Some(_)) => true,
+      Self::Nat(Some(_)) => true,
+      Self::Int(Some(_)) => true,
+      Self::Float(Some(_)) => true,
+      Self::Text(Some(_)) => true,
+      Self::Char(Some(_)) => true,
+      Self::Hash(Some(_)) => true,
+      _ => false,
     }
   }
 }
