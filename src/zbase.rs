@@ -1,4 +1,10 @@
 use core::fmt;
+use nom;
+use nom::error::ErrorKind;
+use nom::error::ParseError;
+use nom::InputLength;
+use nom::InputTakeAtPosition;
+use nom::{branch::alt, bytes::complete::tag, combinator::value, IResult};
 
 #[derive(PartialEq, Eq, Clone, Copy, Debug)]
 pub enum ZBase {
@@ -17,56 +23,88 @@ impl Default for ZBase {
   }
 }
 
-/// Error types
-#[derive(PartialEq, Eq, Clone, Debug)]
-pub enum ZBaseError {
-  /// Unknown print code.
-  UnknownCode(char),
-  /// Invalid string.
-  InvalidEncoding,
-}
-
-impl fmt::Display for ZBaseError {
+impl fmt::Display for ZBase {
   fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
     match self {
-      ZBaseError::UnknownCode(code) => {
-        write!(f, "Unknown ZBase code: {}", code)
-      }
-      ZBaseError::InvalidEncoding => write!(f, "Invalid ZBase encoding"),
+      Self::Z2 => write!(f, "zbase-2"),
+      Self::Z8 => write!(f, "zbase-8"),
+      Self::Z10 => write!(f, "zbase-10"),
+      Self::Z16 => write!(f, "zbase-16"),
+      Self::Z32 => write!(f, "zbase-32"),
+      Self::Z58 => write!(f, "zbase-58"),
+      Self::Z64 => write!(f, "zbase-64"),
     }
   }
 }
 
-impl std::error::Error for ZBaseError {}
+#[derive(PartialEq, Eq, Clone, Debug)]
+pub enum ZBaseError<I> {
+  InvalidEncoding(I, ZBase),
+  NomErr(I, ErrorKind),
+}
 
-impl From<base_x::DecodeError> for ZBaseError {
-  fn from(_: base_x::DecodeError) -> Self {
-    Self::InvalidEncoding
+impl<I> ZBaseError<I> {
+  pub fn rest(self) -> I {
+    match self {
+      Self::InvalidEncoding(i, _) => i,
+      Self::NomErr(i, _) => i,
+    }
   }
 }
 
-pub const BASE2: &str = "01";
-pub const BASE8: &str = "01234567";
-pub const BASE10: &str = "0123456789";
-pub const BASE16: &str = "0123456789abcdef";
-pub const BASE32Z: &str = "ybndrfg8ejkmcpqxot1uwisza345h769";
-pub const BASE58BTC: &str =
-  "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
-pub const BASE64URL: &str =
-  "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+impl<I> ParseError<I> for ZBaseError<I>
+where
+  I: InputLength,
+  I: Clone,
+{
+  fn from_error_kind(input: I, kind: ErrorKind) -> Self {
+    ZBaseError::NomErr(input, kind)
+  }
+
+  fn append(i: I, k: ErrorKind, other: Self) -> Self {
+    if i.clone().input_len() < other.clone().rest().input_len() {
+      ZBaseError::NomErr(i, k)
+    } else {
+      other
+    }
+  }
+
+  fn or(self, other: Self) -> Self {
+    if self.clone().rest().input_len() < other.clone().rest().input_len() {
+      self
+    } else {
+      other
+    }
+  }
+}
+
+//impl<I: fmt::Display> fmt::Display for ZBaseError<I> {
+//  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+//    match self {
+//      ZBaseError::InvalidEncoding(i, base) => {
+//        write!(f, "Expected {} base, but got {}", base, i)
+//      }
+//      ZBaseError::NomErr(i, err) => {
+//        write!(f, "Parse error {:?} on input {}", err, i)
+//      }
+//    }
+//  }
+//}
+
+//
+//impl<I: fmt::Debug + fmt::Display> std::error::Error for ZBaseError<I> {}
 
 impl ZBase {
-  pub fn from_code(code: char) -> Result<Self, ZBaseError> {
-    match code {
-      'b' => Ok(Self::Z2),
-      'o' => Ok(Self::Z8),
-      'd' => Ok(Self::Z10),
-      'x' => Ok(Self::Z16),
-      'v' => Ok(Self::Z32),
-      'I' => Ok(Self::Z58),
-      '~' => Ok(Self::Z64),
-      _ => Err(ZBaseError::UnknownCode(code)),
-    }
+  pub fn parse_code(i: &str) -> IResult<&str, Self, ZBaseError<&str>> {
+    alt((
+      value(Self::Z2, tag("b")),
+      value(Self::Z8, tag("o")),
+      value(Self::Z10, tag("d")),
+      value(Self::Z16, tag("x")),
+      value(Self::Z32, tag("v")),
+      value(Self::Z58, tag("I")),
+      value(Self::Z64, tag("~")),
+    ))(i)
   }
 
   /// Get the code corresponding to the base algorithm.
@@ -82,39 +120,46 @@ impl ZBase {
     }
   }
 
-  /// Encode the given byte slice to base string.
-  pub fn encode<I: AsRef<[u8]>>(&self, input: I) -> String {
+  pub fn base_digits(&self) -> &str {
     match self {
-      Self::Z2 => base_x::encode(BASE2, input.as_ref()),
-      Self::Z8 => base_x::encode(BASE8, input.as_ref()),
-      Self::Z10 => base_x::encode(BASE10, input.as_ref()),
-      Self::Z16 => base_x::encode(BASE16, input.as_ref()),
-      Self::Z32 => base_x::encode(BASE32Z, input.as_ref()),
-      Self::Z58 => base_x::encode(BASE58BTC, input.as_ref()),
-      Self::Z64 => base_x::encode(BASE64URL, input.as_ref()),
+      Self::Z2 => "01",
+      Self::Z8 => "01234567",
+      Self::Z10 => "0123456789",
+      Self::Z16 => "0123456789abcdef",
+      Self::Z32 => "ybndrfg8ejkmcpqxot1uwisza345h769",
+      Self::Z58 => "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz",
+      Self::Z64 => {
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
+      }
     }
   }
 
-  /// Decode the base string.
-  pub fn decode<I: AsRef<str>>(&self, input: I) -> Result<Vec<u8>, ZBaseError> {
-    match self {
-      Self::Z2 => Ok(base_x::decode(BASE2, input.as_ref())?),
-      Self::Z8 => Ok(base_x::decode(BASE8, input.as_ref())?),
-      Self::Z10 => Ok(base_x::decode(BASE10, input.as_ref())?),
-      Self::Z16 => Ok(base_x::decode(BASE16, input.as_ref())?),
-      Self::Z32 => Ok(base_x::decode(BASE32Z, input.as_ref())?),
-      Self::Z58 => Ok(base_x::decode(BASE58BTC, input.as_ref())?),
-      Self::Z64 => Ok(base_x::decode(BASE64URL, input.as_ref())?),
+  pub fn is_digit(&self, x: char) -> bool {
+    self.base_digits().chars().any(|y| x == y)
+  }
+
+  pub fn encode<I: AsRef<[u8]>>(&self, input: I) -> String {
+    base_x::encode(self.base_digits(), input.as_ref())
+  }
+
+  pub fn decode<'a>(
+    &self,
+    input: &'a str,
+  ) -> IResult<&'a str, Vec<u8>, ZBaseError<&'a str>> {
+    let (i, o) = input.split_at_position_complete(|x| !self.is_digit(x))?;
+    match base_x::decode(self.base_digits(), o) {
+      Ok(bytes) => Ok((i, bytes)),
+      Err(_) => {
+        Err(nom::Err::Error(ZBaseError::InvalidEncoding(i, self.clone())))
+      }
     }
   }
 }
 
-pub fn decode<T: AsRef<str>>(input: T) -> Result<(ZBase, Vec<u8>), ZBaseError> {
-  let input = input.as_ref();
-  let code = input.chars().next().ok_or(ZBaseError::InvalidEncoding)?;
-  let base = ZBase::from_code(code)?;
-  let decoded = base.decode(&input[code.len_utf8()..])?;
-  Ok((base, decoded))
+pub fn parse(input: &str) -> IResult<&str, (ZBase, Vec<u8>), ZBaseError<&str>> {
+  let (i, base) = ZBase::parse_code(input)?;
+  let (i, bytes) = base.decode(i)?;
+  Ok((i, (base, bytes)))
 }
 
 pub fn encode<T: AsRef<[u8]>>(base: ZBase, input: T) -> String {
@@ -148,15 +193,15 @@ mod tests {
 
   #[quickcheck]
   fn zprint_code(x: ZBase) -> bool {
-    match ZBase::from_code(x.code()) {
-      Ok(y) => x == y && y.code() == x.code(),
+    match ZBase::parse_code(&x.code().to_string()) {
+      Ok((_, y)) => x == y && y.code() == x.code(),
       _ => false,
     }
   }
   #[quickcheck]
   fn zprint_string(x: ZBase, s: String) -> bool {
-    match decode(encode(x, s.clone())) {
-      Ok((y, s2)) => x == y && s.into_bytes() == s2,
+    match parse(&encode(x, s.clone())) {
+      Ok((_, (y, s2))) => x == y && s.into_bytes() == s2,
       _ => false,
     }
   }

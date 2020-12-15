@@ -65,8 +65,6 @@ impl ZType {
 
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub enum ZTypeError<I> {
-  UnknownType(I, String),
-  UnknownTypeCode(I, u64),
   UnalignedTypeIndex(I, u64),
   InvalidU64TypeIndex(I, ParseIntError),
   NomErr(I, ErrorKind),
@@ -75,8 +73,6 @@ pub enum ZTypeError<I> {
 impl<I> ZTypeError<I> {
   pub fn rest(self) -> I {
     match self {
-      Self::UnknownType(i, _) => i,
-      Self::UnknownTypeCode(i, _) => i,
       Self::UnalignedTypeIndex(i, _) => i,
       Self::InvalidU64TypeIndex(i, _) => i,
       Self::NomErr(i, _) => i,
@@ -136,14 +132,14 @@ pub fn parse_index(i: &str) -> IResult<&str, Option<u64>, ZTypeError<&str>> {
 
 pub fn parse(input: &str) -> IResult<&str, ZType, ZTypeError<&str>> {
   alt((
-    map(preceded(tag("bytes"), parse_index), |x| ZType::Bytes(x)),
-    map(preceded(tag("symbol"), parse_index), |x| ZType::Symbol(x)),
-    map(preceded(tag("nat"), parse_index), |x| ZType::Nat(x)),
-    map(preceded(tag("int"), parse_index), |x| ZType::Int(x)),
-    map(preceded(tag("float"), parse_index), |x| ZType::Float(x)),
-    map(preceded(tag("text"), parse_index), |x| ZType::Text(x)),
-    map(preceded(tag("char"), parse_index), |x| ZType::Char(x)),
-    map(preceded(tag("hash"), parse_index), |x| ZType::Hash(x)),
+    map(preceded(tag("bytes"), parse_index), ZType::Bytes),
+    map(preceded(tag("symbol"), parse_index), ZType::Symbol),
+    map(preceded(tag("nat"), parse_index), ZType::Nat),
+    map(preceded(tag("int"), parse_index), ZType::Int),
+    map(preceded(tag("float"), parse_index), ZType::Float),
+    map(preceded(tag("text"), parse_index), ZType::Text),
+    map(preceded(tag("char"), parse_index), ZType::Char),
+    map(preceded(tag("hash"), parse_index), ZType::Hash),
   ))(input)
 }
 
